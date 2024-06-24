@@ -1,7 +1,6 @@
 import { Page, Story } from "@/types/stories";
 import path from "path";
 import fs from "fs";
-import { Key } from "lucide-react";
 import cleanTitle from "./cleanTitle";
 
 const storiesDirectory = path.join(process.cwd(), "public/stories");
@@ -33,7 +32,7 @@ export function getAllStories(): Story[] {
         if (type === "txt") {
           pageMap[pageNumber].txt = fs.readFileSync(filePath, "utf-8");
         } else if (type === "png") {
-          pageMap[pageNumber].png = `/stories/${storyFolder}${file};`;
+          pageMap[pageNumber].png = `/stories/${storyFolder}/${file}`;
         }
       }
     });

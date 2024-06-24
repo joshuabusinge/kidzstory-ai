@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
+import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -21,6 +22,7 @@ export default function RootLayout({
         {children}
 
         {/* Toaster */}
+        <Toaster duration={8000} position="bottom-left" />
       </body>
     </html>
   );

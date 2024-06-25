@@ -14,6 +14,7 @@ import { Frame } from "@gptscript-ai/gptscript";
 import renderEventMessage from "@/lib/renderEventMessage";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+
 const storiesPath = "public/stories";
 
 function StoryWriter() {
@@ -30,26 +31,28 @@ function StoryWriter() {
     setRunStarted(true);
     setRunFinished(false);
 
-    const response = await fetch("/api/run-script", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ story, pages, path: storiesPath }),
-    });
+    try {
+      const response = await fetch("/api/run-script", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ story, pages, path: storiesPath }),
+      });
 
-    if (response.ok && response.body) {
-      // Handle streams from the API
-      console.log("Streaming has started");
+      if (response.ok && response.body) {
+        console.log("Streaming has started");
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-
-      handleStream(reader, decoder);
-    } else {
+        handleStream(reader, decoder);
+      } else {
+        throw new Error("Failed to start streaming");
+      }
+    } catch (error) {
       setRunFinished(true);
       setRunStarted(false);
-      console.error("Failed to start streaming");
+      console.error("Run script error:", error);
     }
   }
 
@@ -58,42 +61,41 @@ function StoryWriter() {
     decoder: TextDecoder
   ) {
     // Manage the stream from the API...
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break; // breaks out of the loop!
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      // Decode the Uint8Array into a string.
-      const chunk = decoder.decode(value, { stream: true });
+        const chunk = decoder.decode(value, { stream: true });
+        const eventData = chunk
+          .split("\n\n")
+          .filter((line) => line.startsWith("event:"))
+          .map((line) => line.replace(/^event: /, ""));
 
-      // Split the chunk into events by splitting it by the event: keyword.
-      const eventData = chunk
-        .split("\n\n")
-        .filter((line) => line.startsWith("event:"))
-        .map((line) => line.replace(/^event: /, ""));
+        eventData.forEach((data) => {
+          try {
+            const parsedData = JSON.parse(data);
 
-      // Parse the JSON data and update the state accordingly.
-      eventData.forEach((data) => {
-        try {
-          const parsedData = JSON.parse(data);
-          console.log(parsedData);
-
-          if (parsedData.type === "callProgress") {
-            setProgress(
-              parsedData.output[parsedData.output.length - 1].content
-            );
-            setCurrentTool(parsedData.tool?.description || "");
-          } else if (parsedData.type === "callStart") {
-            setCurrentTool(parsedData.tool?.description || "");
-          } else if (parsedData.type === "runFinish") {
-            setRunFinished(true);
-            setRunStarted(false);
-          } else {
-            setEvents((prevEvents) => [...prevEvents, parsedData]);
+            if (parsedData.type === "callProgress") {
+              setProgress(
+                parsedData.output[parsedData.output.length - 1].content
+              );
+              setCurrentTool(parsedData.tool?.description || "");
+            } else if (parsedData.type === "callStart") {
+              setCurrentTool(parsedData.tool?.description || "");
+            } else if (parsedData.type === "runFinish") {
+              setRunFinished(true);
+              setRunStarted(false);
+            } else {
+              setEvents((prevEvents) => [...prevEvents, parsedData]);
+            }
+          } catch (error) {
+            console.error("Failed to parse JSON", error);
           }
-        } catch (error) {
-          console.error("Failed to parse JSON", error);
-        }
-      });
+        });
+      }
+    } catch (error) {
+      console.error("Stream handling error:", error);
     }
   }
 
